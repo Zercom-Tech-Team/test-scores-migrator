@@ -15,13 +15,15 @@ class UserTestScore
 
     public function handle()
     {
+        $this->data["name"] = $this->data[0];
         $this->data[0] = $this->getUserIdst($this->data[0]);
         $this->data[2] = $this->getDatetime($this->data[2]);
         $this->data[3] = $this->getDatetime($this->data[3]);
 
-        $refId = $this->getReferenceId($this->data[1]);
-
-        if ($this->data[0] && $refId) {
+        if (
+            $this->data[0] &&
+            ($refId = $this->getReferenceId($this->data[1]))
+        ) {
             $this->createTestTrack($this->data, $refId);
         }
     }
@@ -38,29 +40,23 @@ class UserTestScore
 
     private function getReferenceId($testId)
     {
-        $created_at = $this->getTimeCreated($testId);
-
-        $query_ref = "SELECT param_value FROM learning_lo_param WHERE param_name='idReference' AND created_at='$created_at'";
+        $query_ref = "SELECT idOrg FROM learning_organization WHERE objectType = 'test' AND idResource='$testId'";
         $res = sql_query($query_ref);
         if (!sql_num_rows($res)) {
+            $file = _base_ . "/testCompletion/failedTestsCompletion.csv";
+            $fp = fopen($file, "a");
+            fputcsv($fp, [
+                $this->data["name"],
+                $this->data[1],
+                "test reference not found",
+            ]);
+            fclose($fp);
+            echo "<p style='background: #c21919; color: white; padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-family: \"Courier New\", Courier, monospace;'>Error processing request. Referenced test does not exist in the database</p>";
             return 0;
         }
-        list($param_value) = sql_fetch_row($res);
+        list($idOrg) = sql_fetch_row($res);
 
-        return $param_value;
-    }
-
-    private function getTimeCreated($testId)
-    {
-        $query_created = "SELECT created_at FROM learning_test WHERE idTest = $testId";
-        $res = sql_query($query_created);
-
-        if (!sql_num_rows($res)) {
-            return 0;
-        }
-        list($created_at) = sql_fetch_row($res);
-
-        return $created_at;
+        return $idOrg;
     }
 
     private function getUserIdst($userId)
@@ -71,24 +67,23 @@ class UserTestScore
         if (!sql_num_rows($res)) {
             $file = _base_ . "/testCompletion/failedTestsCompletion.csv";
             $fp = fopen($file, "a");
-            fputcsv($fp, [$userId, $this->data[1]]);
+            fputcsv($fp, [$userId, $this->data[1], "user not found"]);
             fclose($fp);
+            echo "<p style='background: #c21919; color: white; padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-family: \"Courier New\", Courier, monospace;'>Error processing request. User does not exist in the database</p>";
             return 0;
         }
 
         list($idst) = sql_fetch_row($res);
-        $file = _base_ . "/testCompletion/passedTestsCompletion.csv";
-        $fp = fopen($file, "a");
-        fputcsv($fp, [$userId, $this->data[1], $idst]);
-        fclose($fp);
 
         return $idst;
     }
 
     private function createTestTrack($data, $idReference)
     {
-        $exist = "SELECT COUNT(idTrack) FROM learning_testtrack WHERE idReference = $idReference AND idUser = $data[0] AND idTest = $data[1]";
-        if (sql_query($exist) > 0) {
+        $exist = "SELECT *  FROM learning_testtrack WHERE idReference = $idReference AND idUser = $data[0] AND idTest = $data[1] AND score_status = '$data[4]' AND score = $data[5]";
+        $re = sql_query($exist);
+        if (sql_num_rows($re) > 0) {
+            echo "<p style='background: #c21919; color: white; padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-family: \"Courier New\", Courier, monospace;'>Error processing request. Record already exist </p>";
             return 0;
         }
         $query = "INSERT INTO learning_testtrack
@@ -102,6 +97,13 @@ class UserTestScore
         list($idTrack) = sql_fetch_row(sql_query("SELECT LAST_INSERT_ID()"));
 
         $this->createCommonTrack($data, $idReference, (int) $idTrack);
+
+        $file = _base_ . "/testCompletion/passedTestsCompletion.csv";
+        $fp = fopen($file, "a");
+        fputcsv($fp, [$data["name"], $data[0], $data[1]]);
+        fclose($fp);
+
+        echo "<p style='background: green; color: white; padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-family: \"Courier New\", Courier, monospace;'>Success. Record created successfully</p>";
 
         // $actions = [
         //     "testTrack" => $query,

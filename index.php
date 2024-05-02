@@ -29,14 +29,15 @@ $data = $handleCsv->readCSVFile();
 $firstFiveItems = array_slice($data, 0, 5);
 $count = 1;
 
-foreach ($firstFiveItems as $item) {
+foreach ($data as $item) {
+    echo "<pre style='background: #F5F5F5; padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-family: \"Courier New\", Courier, monospace;'>";
+    echo "Processing: " . $count . "<br>";
+    print_r($item);
+    echo "</pre>";
+
     $userTestScore = new UserTestScore($item);
     $userTestScore->handle();
-
-    print "<pre>";
-    echo "Processed: " . $count;
-    print_r($item);
-    print "</pre>";
+    // exit;
 
     $count++;
 }
